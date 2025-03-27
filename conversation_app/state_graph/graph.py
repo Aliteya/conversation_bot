@@ -1,11 +1,10 @@
-from ..core import settings
 from .start_state import start
 from .rate_state import rate
 from .bargaining import bargaining
 from .finish_state import finish
 from .refuse_state import refuse
 
-from langchain_openai import ChatOpenAI
+
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
 from langchain.prompts import PromptTemplate
@@ -18,8 +17,6 @@ class State(TypedDict):
     format: str
     cpm: float
     views: List[int]
-
-llm = ChatOpenAI(model="gpt-4o-mini", temperature=0, api_key=settings.get_llm_key())
 
 workflow = StateGraph(state_schema=State)
 
@@ -36,5 +33,5 @@ workflow.add_conditional_edges("bargaining", lambda state: "finish")
 workflow.add_edge("finish", END)
 workflow.add_edge("refuse", END)
 
-async def call_model(state: State):
-    pass
+memory = MemorySaver()
+app = workflow.compile(checkpointer=memory)
