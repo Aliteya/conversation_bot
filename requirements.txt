@@ -1,0 +1,5 @@
+aiogram
+langchain 
+langchain-openai
+langgraph
+pydantic_settings
