@@ -30,13 +30,15 @@ async def handle_message(message: Message):
         }
         current_state = await app.aget_state(checkpoint)
        
-        print("current_state",current_state)
+        logger.debug(f"current_state: {current_state}")
         if not current_state:
             await message.answer("Пожалуйста, начните с команды /start")
             return
             
         updated_state = current_state.values.copy()
         updated_state["messages"].append(message.text)
+        
+        logger.debug(f"updated_state: {updated_state}")
 
         new_checkpoint = await app.aupdate_state(
             config=checkpoint,
@@ -45,6 +47,7 @@ async def handle_message(message: Message):
         
         async for step in app.astream(None, new_checkpoint):
             if step.get("messages"):
+                logger.debug(f"step messages {step.get("messages")}")
                 await message.answer(step["messages"][-1])
                 break
                 

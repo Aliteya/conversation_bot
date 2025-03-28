@@ -4,14 +4,14 @@
 # from .finish_state import finish
 # from .refuse_state import refuse
 from ..core import llm
-
 from ..logging import logger
+
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
 from langchain.prompts import PromptTemplate
 from typing import TypedDict, List, Annotated, Literal, Optional
 from langchain.schema import HumanMessage
-import re
+import json
 
 class State(TypedDict):
     messages: List[str]
@@ -44,35 +44,55 @@ async def start(state):
 
 async def rate(state):
     logger.info("state rate")
+    last_message = state["messages"][-1]
+    logger.info(f"Последнее сообщение: {last_message}")
+
     prompt = PromptTemplate(
         input_variables=["text"],
-        template="get cpm and views from the following text. Return in (cpm_value, views_value or views_min_value-views_max_value) strict format."
+        template="""
+        Извлеки следующие данные из текста:
+        - Цена за 1000 просмотров (CPM) в долларах (только число)
+        - Количество просмотров (только число или два числа через дефис)
+
+        Текст: {text}
+
+        Ответ ДОЛЖЕН быть строго в формате JSON БЕЗ каких-либо обратных кавычек или markdown:
+        {{
+            "cpm": число,
+            "views": число | [число, число]
+        }}
+
+        Пример правильного ответа:
+        {{"cpm": 100, "views": [120000]}}
+        """
     )
-    print(state["messages"][-1])
-    message = HumanMessage(content=prompt.format(text=state["messages"][-1]))
+
+    message = HumanMessage(content=prompt.format(text=last_message))
     response = await llm.ainvoke([message])
-    state = await add_message(state,"Hey, please, provide your desired rate")
-
-    pattern = r"\((\d+),\s*(\d+)(?:-(\d+))?\)"
     
-    match = re.match(pattern, response.content.strip())
-    if not match:
-        raise ValueError("Invalid input format. Expected: (cpm_value, views_value or views_min_value-views_max_value)")
-    
-    cpm = int(match.group(1)) 
-    views_min_value = match.group(2)  
-    views_max_value = match.group(3)
-    if views_max_value:
-        views = [int(views_min_value), int(views_max_value)]  
-    else:
-        views = [int(views_min_value)] 
-    state["cpm"] = cpm
-    state["views"] = views
-    return state
+    try:
+        response_text = response.content.strip()
+        if response_text.startswith("```json"):
+            response_text = response_text[7:-3].strip()
+        
+        data = json.loads(response_text)
+        cpm = data["cpm"]
+        views = data["views"]
 
+        state["cpm"] = cpm
+        state["views"] = views if isinstance(views, list) else [views]
+        
+        logger.debug(f"State in rate node: {state}")
+        return state
+
+    except (json.JSONDecodeError, KeyError) as e:
+        logger.error(f"Ошибка парсинга ответа LLM. Получено: {response.content}")
+        await add_message(state, f"Ошибка обработки. Получен ответ: {response.content[:100]}...")
+        raise ValueError("Invalid LLM response format")
 
 async def bargaining(state):
     logger.info("state barg")
+    logger.debug(f'State in bargaining node: {state}')
     pass
 
 async def finish(state):
