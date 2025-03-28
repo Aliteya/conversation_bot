@@ -1,2 +1,5 @@
+from ..logging import logger
+
 async def rate(state):
-    return {"message": "Hey, please, provide your desired rate"}
+    logger.info("state rate")
+    return {"text": "Hey, please, provide your desired rate"}
