@@ -25,24 +25,23 @@ async def start_command(message: Message):
 @conversation_router.message()
 async def handle_message(message: Message):
     try:
-        # Получаем текущее состояние
         checkpoint = {
             "configurable": {"thread_id": message.chat.id}
         }
-        current_state = await app.get_state(checkpoint)
-        
+        current_state = await app.aget_state(checkpoint)
+       
+        print("current_state",current_state)
         if not current_state:
             await message.answer("Пожалуйста, начните с команды /start")
             return
             
         updated_state = current_state.values.copy()
         updated_state["messages"].append(message.text)
-        
 
-        new_checkpoint = {
-            "configurable": {"thread_id": message.chat.id},
-            "values": updated_state
-        }
+        new_checkpoint = await app.aupdate_state(
+            config=checkpoint,
+            values={"messages": updated_state["messages"]} 
+        )
         
         async for step in app.astream(None, new_checkpoint):
             if step.get("messages"):

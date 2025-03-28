@@ -33,6 +33,8 @@ def init_state() -> State:
 
 async def add_message(state: State, text: str) -> State:
     state["messages"].append(text)
+    logger.info(f"Added message to context: {text}")
+    logger.info(f"Now message context: {list(state["messages"])}")
     return state
 
 async def start(state):
@@ -41,11 +43,12 @@ async def start(state):
     return state
 
 async def rate(state):
-    logger.info("state start")
+    logger.info("state rate")
     prompt = PromptTemplate(
         input_variables=["text"],
         template="get cpm and views from the following text. Return in (cpm_value, views_value or views_min_value-views_max_value) strict format."
     )
+    print(state["messages"][-1])
     message = HumanMessage(content=prompt.format(text=state["messages"][-1]))
     response = await llm.ainvoke([message])
     state = await add_message(state,"Hey, please, provide your desired rate")
@@ -95,4 +98,4 @@ workflow.add_conditional_edges("bargaining", lambda state: "finish")
 workflow.add_edge("finish", END)
 workflow.add_edge("refuse", END)
 
-app = workflow.compile(checkpointer=memory)
+app = workflow.compile(checkpointer=memory, interrupt_after="*")
