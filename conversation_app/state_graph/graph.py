@@ -81,6 +81,7 @@ async def rate(state):
 
         state["cpm"] = cpm
         state["views"] = views if isinstance(views, list) else [views]
+        state = await add_message(state,"Hey, please, provide your desired rate")
         
         logger.debug(f"State in rate node: {state}")
         return state

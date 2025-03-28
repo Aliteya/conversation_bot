@@ -44,12 +44,17 @@ async def handle_message(message: Message):
             config=checkpoint,
             values={"messages": updated_state["messages"]} 
         )
-        
+        logger.debug(f"astream cycle")
         async for step in app.astream(None, new_checkpoint):
-            if step.get("messages"):
-                logger.debug(f"step messages {step.get("messages")}")
-                await message.answer(step["messages"][-1])
-                break
+            logger.debug(f"app astream step: {step}")
+            for node_name, node_data in step.items():
+                if isinstance(node_data, dict) and "messages" in node_data:
+                    messages = node_data["messages"]
+                    if messages:
+                        last_message = messages[-1]
+                        logger.debug(f"Found message in node {node_name}: {last_message}")
+                        await message.answer(last_message)
+                        break
                 
     except Exception as e:
         logger.error(f"Message handling error: {e}", exc_info=True)
