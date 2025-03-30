@@ -1,9 +1,9 @@
 from .start_state import start
 from .rate_state import rate
-# from .bargaining import bargaining
+from .bargaining import bargaining
 # from .finish_state import finish
 # from .refuse_state import refuse
-from .util import add_message
+from .util import State
 from ..core import llm
 from ..logging import logger
 
@@ -11,158 +11,81 @@ from ..logging import logger
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
 from langchain.prompts import PromptTemplate
-from typing import TypedDict, List, Annotated, Literal, Optional
+
 from langchain.schema import HumanMessage
 import json
 
-class State(TypedDict):
-    messages: List[str]
-    solution: Optional[Literal["accepted", "rejected"]]
-    price: Optional[float]
-    format: Optional[Literal["fix", "cpm"]]
-    cpm: Optional[float]
-    views: Optional[List[int]]
-
-def init_state() -> State:
-    return {
-        "messages": [],
-        "solution": None,
-        "price": None,
-        "format": None,
-        "cpm": None,
-        "views": None
-    }
-
-
-async def bargaining(state: State):
-    logger.info("state barg")
-    logger.debug(f'State in bargaining node: {state}')
-    last_message = state["messages"][-1]
-    prompt = PromptTemplate(
-        input_variables=["text"],
-        template="""
-        Проанализируй сообщение блогера и извлеки:
-        1. Предложенную цену (если есть)
-        Если цена не в долларах - конвертируй по курсу.
-        Если данных нет - верни null.
-        
-        Текст: {text}
-        Ответ в формате JSON:
-        {{
-            "price": число|null
-        }}
-        """
-    )
-    try:
-        message = HumanMessage(content=prompt.format(text=last_message))
-        response = await llm.ainvoke([message])
-        response_text = response.content.strip()
-        if response_text.startswith("```json"):
-            response_text = response_text[7: -3].strip()
-
-        response_data = json.loads(response_text)
-        logger.debug(f"Response data: {response_data}")
-        blogger_price = response_data.get("price")
-
-        if blogger_price is not None:
-            state["blogger_price"] = blogger_price
-        logger.debug(f"Price adding to state {blogger_price}")
-
-        client_a_price = ((state["cpm"] * (((state["views"][0] + state["views"][-1]) / 2) + state["views"][-1]) / 2) / 1000)
-        client_x_price = float(state["cpm"] * state["views"][0]) / 1000
-        logger.debug(f"Средняя цена {client_a_price}, Минимальная цена {client_x_price}")
-        
-        if blogger_price is None: 
-            blogger_price = client_a_price
-            state["blogger_price"] = client_a_price
-
-        if blogger_price <= client_x_price:
-            state.update({
-                "solution": "accepted",
-                "format": "fix",
-                "price": blogger_price
-            })
-            await add_message(state, "Мы согласны.") 
-            # ВОТ ТУТ ПЕРЕХОД НА ФИНАЛ
-        else: 
-            state.update({
-                "format": "fix",
-                "price": client_a_price
-            })
-            await add_message(state, f"Предлагаю Вам {client_a_price} за рекламную интеграцию.") 
-        return state
-
-    except (json.JSONDecodeError, KeyError) as e:
-        logger.error(f"Ошибка парсинга ответа LLM. Получено: {response.content}")
-        await add_message(state, f"Ошибка обработки. Получен ответ: {response.content[:100]}...")
-        raise ValueError("Invalid LLM response format")
-
 async def bargaining_fix(state: State):
-    logger.info("state bargaining fix with cap")
-    logger.debug(f'State in bargaining node: {state}')
-    last_message = state["messages"][-1]
+    logger.info("State bargaining fix with sale")
+    logger.debug(f'State in bargaining fix node: {state}')
+    last_message = state.messages[-1]
     prompt = PromptTemplate(
         input_variables=["text"],
         template="""
-        Проанализируй сообщение блогера {text}. Если он согласен на сделку тогда верни строку True,
-        иначе False
+        Проанализируй сообщение блогера и определи, согласен ли он на предложенную сделку.
+        Ответь СТРОГО ТОЛЬКО одно слово: "True" или "False".
+        
+        Примеры:
+        - "Да, согласен" → True
+        - "Нет, не устраивает" → False
         
         Текст: {text}
-        Ответ в формате str:
-        'True'
         """
     )
     try:
         message = HumanMessage(content=prompt.format(text=last_message))
         response = await llm.ainvoke([message])
-        response_text = response.content.strip()
-        logger.debug(f"Подходит ли новая сделка: {response_text}")
-        state["blogger_price"] = state["price"]
-        if response_text == 'True':
-            state["solution"] = "accepted"
-            state["price"] = state["blogger_price"]
-            # await add_message(state, f"Прекрасно, тогда скоро отправим Вам материалы. Решение: {state["solution"]}. Итоговый формат сделки: {state.get("format", "Заключение сделки не удалось")}, Стоимость сделки: {state.get("price", "Заключение сделки не удалось")}")
+        response_text = response.content.strip().lower()
+        logger.debug(f"Подходит ли новая сделка: {response_text}, {type(response_text)}")
+        
+        if response_text == "true":
+            state.solution = "accepted"
+            # state.blogger_price = state.price
             # ПЕРЕХОД НА ФИНАЛ
         else:
-            if "sale" not in state:
-                state["sale"] = 20
-                state["blogger_price"] *= 1.2
-                await add_message(state, "Предлагаю Вам скидку в 20% от первоначальной суммы")
+            if not state.sale:
+                state.sale = 20
+                state.price *= 1.2
+                await state.add_message(f"Предлагаю Вам на 20% больше от первоначальной суммы, {state.price}")
                 # БЕРЁМ СКИДКУ И КРУТИМСЯ НА ЭТОМ УЗЛЕ
-            elif state["sale"] == 20: 
-                state["sale"] += 10
-                state["blogger_price"] = state["price"] * 1.3
-                await add_message(state, "Предлагаю Вам скидку в 30% от первоначальной суммы")
+            elif state.sale == 20: 
+                state.sale = 30
+                state.price = 1.3 * (await state.get_average_price()) 
+                await state.add_message(f"Предлагаю Вам на 30% больше от первоначальной суммы, {state.price}")
                 # БЕРЁМ СКИДКУ И КРУТИМСЯ НА ЭТОМ УЗЛЕ
             else: 
-                state["format"] = "cpm"
-                await add_message(state, "Предлагаю перейти на другой формат сделки")
+                state.format = "cpm"
+                await state.add_message("Предлагаю перейти на другой формат сделки")
                 # МЕНЯЕМ КОНЕЙ НА ПЕРЕПРАВЕ
+        return state
     except Exception as e:
         logger.error(f"Ошибка парсинга ответа LLM. Получено: {response.content}")
-        await add_message(state, f"Ошибка обработки. Получен ответ: {response.content[:100]}...")
+        await state.add_message(f"Ошибка обработки. Получен ответ: {response.content[:100]}...")
         raise ValueError("Invalid LLM response format")
 
-async def bargaining_cpm(state):
-    pass
+async def bargaining_cpm(state: State):
+    logger.info("State bargaining fix with sale")
+    logger.debug(f'State in bargaining fix node: {state}')
+    return state
 
-async def finish(state):
+async def finish(state: State):
     logger.debug("finish state")
-    await add_message(state, f"Прекрасно, тогда скоро отправим Вам материалы. Решение: {state["solution"]}. Итоговый формат сделки: {state.get("format", "Заключение сделки не удалось")}, Стоимость сделки: {state.get("price", "Заключение сделки не удалось")}")
+    state.blogger_price = state.price
+    await state.add_message(f"Прекрасно, тогда скоро отправим Вам материалы. Решение: {state.solution}. Итоговый формат сделки: {state.format}, Стоимость сделки: {state.price}")
     return state
 
 async def refuse(state):
     pass
 
-def decide_next_state(state):
-    if state["solution"] == "accepted":
+def decide_next_state(state: State):
+    if state.solution == "accepted":
         return "finish"
-    elif state["solution"] == "rejected":
+    elif state.solution == "rejected":
         return "refuse"
     else:
-        if state["format"] == "fix":
+        if state.format == "fix":
             return "bargaining_fix"
-        elif state["format"] == "cpm":
+        elif state.format == "cpm":
             return "bargaining_cpm"
         else:
             return "bargaining"
@@ -185,7 +108,37 @@ workflow.add_node("refuse", refuse)
 workflow.set_entry_point("start")
 workflow.add_edge("start", "rate")
 workflow.add_edge("rate", "bargaining")
-workflow.add_conditional_edges("bargaining", decide_next_state, {"finish" : "finish", "refuse": "refuse", "bargaining": "bargaining", "bargaining_fix" : "bargaining_fix", "bargaining_cpm": "bargaining_cpm"})
+workflow.add_conditional_edges(
+    "bargaining",
+    decide_next_state,
+    {
+        "finish" : "finish", 
+        "refuse": "refuse", 
+        "bargaining": "bargaining", 
+        "bargaining_fix" : "bargaining_fix", 
+        "bargaining_cpm": "bargaining_cpm"
+    }
+)
+workflow.add_conditional_edges(
+    "bargaining_fix",
+    decide_next_state,
+    {
+        "finish": "finish",
+        "refuse": "refuse",
+        "bargaining_fix": "bargaining_fix",
+        "bargaining_cpm": "bargaining_cpm"
+    }
+)
+
+workflow.add_conditional_edges(
+    "bargaining_cpm",
+    decide_next_state,
+    {
+        "finish": "finish",
+        "refuse": "refuse",
+        "bargaining_fix": "bargaining_fix"
+    }
+)
 workflow.add_edge("finish", END)
 workflow.add_edge("refuse", END)
 

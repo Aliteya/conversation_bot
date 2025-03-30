@@ -1,7 +1,7 @@
 from ..logging import logger
-from .util import add_message
+from .util import State
 
-async def start(state):
+async def start(state: State) -> State:
     logger.info("state start")
-    state = await add_message(state, "Введите входные данные: желаемая клиентом цена за 1000 просмотров, количество просмотров у блогера. Точное число либо рендж: 100 000, 5 000 - 10 000")
+    state = await state.add_message("Введите входные данные: желаемая клиентом цена за 1000 просмотров, количество просмотров у блогера. Точное число либо рендж: 100 000, 5 000 - 10 000")
     return state

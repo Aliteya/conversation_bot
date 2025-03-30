@@ -1,14 +1,14 @@
 from ..logging import logger
 from ..core import llm
-from .util import add_message
+from .util import State
 
 from langchain.prompts import PromptTemplate
 from langchain.schema import HumanMessage
 import json
 
-async def rate(state):
+async def rate(state: State):
     logger.info("state rate")
-    last_message = state["messages"][-1]
+    last_message = state.messages[-1]
     logger.info(f"Последнее сообщение: {last_message}")
 
     prompt = PromptTemplate(
@@ -43,14 +43,14 @@ async def rate(state):
         cpm = data["cpm"]
         views = data["views"]
 
-        state["cpm"] = cpm
-        state["views"] = views if isinstance(views, list) else [views]
-        state = await add_message(state,"Hey, please, provide your desired rate")
+        state.cpm = cpm
+        state.views = views if isinstance(views, list) else [views]
+        state = await state.add_message("Hey, please, provide your desired rate")
         
         logger.debug(f"State in rate node: {state}")
         return state
 
     except (json.JSONDecodeError, KeyError) as e:
         logger.error(f"Ошибка парсинга ответа LLM. Получено: {response.content}")
-        await add_message(state, f"Ошибка обработки. Получен ответ: {response.content[:100]}...")
+        await state.add_message(f"Ошибка обработки. Получен ответ: {response.content[:100]}...")
         raise ValueError("Invalid LLM response format")

@@ -1,4 +1,4 @@
-from ..state_graph import app, init_state
+from ..state_graph import app, State
 from ..logging import logger
 
 from aiogram import Router
@@ -9,9 +9,10 @@ conversation_router = Router()
 
 @conversation_router.message(Command("start"))
 async def start_command(message: Message):
+    state = State()
     checkpoint = {
         "configurable": {"thread_id": message.chat.id},
-        "values": init_state()
+        "values": state.init_state()
     }
     try:
         result = await app.ainvoke(input={"messages": ["/start"]}, config=checkpoint)
