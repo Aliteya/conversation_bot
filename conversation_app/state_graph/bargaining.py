@@ -39,8 +39,9 @@ async def bargaining(state: State):
         if blogger_price is not None:
             state.blogger_price = blogger_price
         logger.debug(f"Price adding to state {blogger_price}")
-
-        client_a_price = await state.get_average_price()
+        if state.fixprice is None:
+            state.fixprice = await state.get_average_price()
+        client_a_price = state.fixprice
         state.price = await state.get_min_price()
         logger.debug(f"Средняя цена {client_a_price}, Минимальная цена {state.price}")
         
@@ -57,7 +58,7 @@ async def bargaining(state: State):
         else: 
             state.solution = "negotiating"
             state.format = "fix"
-            state.price = client_a_price 
+            state.price = client_a_price
             await state.add_message(f"Предлагаю Вам {client_a_price} за рекламную интеграцию.") 
             # ПЕРЕХОД НА ДРУГУЮ ФИКСИРОВАННУЮ СТАВКУ
         return state

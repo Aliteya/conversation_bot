@@ -12,6 +12,7 @@ class State(BaseModel):
     format: Optional[Literal["fix", "cpm"]] = None
     cpm: Optional[float] = None
     views: Optional[List[int]] = None
+    fixprice: Optional[int] = None
 
     def init_state(self):
         return {
@@ -22,7 +23,8 @@ class State(BaseModel):
             "price": None,
             "format": None,
             "cpm": None,
-            "views": None
+            "views": None,
+            "fixprice": None
         }
 
     async def add_message(self, text: str):

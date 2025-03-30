@@ -17,17 +17,19 @@ async def rate(state: State):
         Извлеки следующие данные из текста:
         - Цена за 1000 просмотров (CPM) в долларах (только число) если не в долларах, то посмотри по нынешнему курсу нац. банка
         - Количество просмотров (только число или два числа через дефис)
+        - Если есть фиксированная ставка в долларах (только число) которую хочет отдать клиент за рекламу, то выгрузи и ее
 
         Текст: {text}
 
         Ответ ДОЛЖЕН быть строго в формате JSON БЕЗ каких-либо обратных кавычек или markdown:
         {{
             "cpm": число,
-            "views": число | [число, число]
+            "views": [число] | [число, число]
+            "fixprice": число | null
         }}
 
         Пример правильного ответа:
-        {{"cpm": 100, "views": [120000]}}
+        {{"cpm": 100, "views": [120000], "fixprice": 500}}
         """
     )
 
@@ -42,10 +44,12 @@ async def rate(state: State):
         data = json.loads(response_text)
         cpm = data["cpm"]
         views = data["views"]
+        fixprice = data["fixprice"]
 
         state.cpm = cpm
         state.views = views if isinstance(views, list) else [views]
-        state = await state.add_message("Hey, please, provide your desired rate")
+        state.fixprice = fixprice
+        await state.add_message("Подскажите цену рекламной интеграции.")
         
         logger.debug(f"State in rate node: {state}")
         return state
