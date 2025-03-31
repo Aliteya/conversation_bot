@@ -17,7 +17,7 @@ async def bargaining_cpm(state: State):
     Примеры:
         - "Хорошо" → True
         - "Не хочу" → False
-        - "Согласен, но ставка низкая" → True
+        - "Согласен, но ставка/цена низкая" → True
     
     Текст: {text}
     """
@@ -30,8 +30,12 @@ async def bargaining_cpm(state: State):
         logger.debug(f"Согласие на CPM сделку: {response_text}")
 
         if response_text == "false":
-            state.solution = "rejected"
-            await state.add_message(f"Предложите свою цену. Я поговорю с клиентов о предоставлении большего бюджета на рекламу.") 
+            state.format = None
+            state.solution = "negotiating"
+            if state.cpm_sale is not None: 
+                state.cpm /= state.cpm_sale
+                state.cpm_sale = 1
+            await state.add_message(f"Предложите свою цену. Попробуем фиксированную ставку. Если не укажете сумму, то буду считать ее за изначальную.") 
             return state
         else:
             conditions_template = """
@@ -60,9 +64,10 @@ async def bargaining_cpm(state: State):
                 await state.add_message("Сделка подтверждена!")
 
             elif conditions_response == "cpm_low":
-                state.cpm *= 1.15
-                state.price *= 1.15
-                await state.add_message(f"CPM +15% → {state.cpm}$,  → {state.price}$.")
+                state.cpm_sale = 1.15
+                state.cpm *= state.cpm_sale
+                state.price *= state.cpm_sale
+                await state.add_message(f"Предлагаю вам повышение CPM +15% → {state.cpm}$, Итоговая сумма  → {state.price}$.")
             
             else:
                 logger.error(f"Неподдерживаемый ответ: {conditions_response}")

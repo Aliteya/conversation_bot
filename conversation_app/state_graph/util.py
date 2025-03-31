@@ -11,6 +11,7 @@ class State(BaseModel):
     price: Optional[float] = None
     format: Optional[Literal["fix", "cpm"]] = None
     cpm: Optional[float] = None
+    cpm_sale: Optional[float] = None
     views: Optional[List[int]] = None
     fixprice: Optional[int] = None
 
@@ -23,6 +24,7 @@ class State(BaseModel):
             "price": None,
             "format": None,
             "cpm": None,
+            "cpm_sale": None,
             "views": None,
             "fixprice": None
         }

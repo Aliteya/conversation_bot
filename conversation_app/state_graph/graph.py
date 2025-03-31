@@ -70,6 +70,7 @@ workflow.add_conditional_edges(
         "finish": "finish",
         "refuse": "refuse",
         "bargaining_cpm": "bargaining_cpm",
+        "bargaining": "bargaining"
     }
 )
 

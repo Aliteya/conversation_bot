@@ -49,7 +49,7 @@ async def rate(state: State):
         state.cpm = cpm
         state.views = views if isinstance(views, list) else [views]
         state.fixprice = fixprice
-        await state.add_message("Подскажите цену рекламной интеграции.")
+        await state.add_message("Подскажите цену рекламной интеграции. Также Вы можете указать желаемый формат сделки(фиксированная или cpm)")
         
         logger.debug(f"State in rate node: {state}")
         return state

@@ -32,17 +32,18 @@ async def bargaining_fix(state: State):
             state.solution = "accepted"
             # ПЕРЕХОД НА ФИНАЛ
         else:
-            if state.price <= state.blogger_price and  state.blogger_price < state.price*1.2:
-                state.solution = "accepted"
-                state.price = state.blogger_price
-                await state.add_message(f"Принимаем ваше предложение {state.blogger_price}$")
-                return state
             if not state.sale:
+                if state.price <= state.blogger_price and  state.blogger_price < state.price*1.2:
+                    state.solution = "accepted"
+                    state.price = state.blogger_price
+                    await state.add_message(f"Принимаем ваше предложение {state.blogger_price}$")
+                    return state
                 state.sale = 20
                 state.price = state.fixprice * 1.2
                 await state.add_message(f"Предлагаю Вам на 20% больше от первоначальной суммы, {state.price}$")
                 # БЕРЁМ СКИДКУ И КРУТИМСЯ НА ЭТОМ УЗЛЕ
             elif state.sale == 20: 
+                print(state.price, state.fixprice)
                 state.price = state.fixprice * 1.3
                 if state.blogger_price < state.price:
                     state.solution = "accepted"
@@ -55,7 +56,7 @@ async def bargaining_fix(state: State):
             else: 
                 state.price = await state.get_average_price()
                 state.format = "cpm"
-                await state.add_message(f"Предлагаю перейти на другой формат сделки. Оплата за каждую 1000 просмотров: {state.cpm}, цена: {state.price}.")
+                await state.add_message(f"Предлагаю перейти на другой формат сделки. Оплата за каждую 1000 просмотров: {state.cpm}, цена: {state.price}. Напишите, согласны ли вы на такой вид сделки, и если да, выскажите свое мнение насчет ставки по cpm.")
                 # МЕНЯЕМ КОНЕЙ НА ПЕРЕПРАВЕ
         return state
     except Exception as e:
